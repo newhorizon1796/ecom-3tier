@@ -1,0 +1,30 @@
+# Requires an ingress controller installed in the cluster (e.g. ingress-nginx
+# via Helm, or the AWS Load Balancer Controller if you prefer an ALB — swap
+# ingressClassName / annotations accordingly).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ecom-ingress
+  namespace: ecom
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: shop.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 5000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80

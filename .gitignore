@@ -1,0 +1,18 @@
+node_modules/
+build/
+dist/
+.env
+*.log
+
+# terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/.terraform.lock.hcl
+terraform/terraform.tfvars
+
+# trivy
+trivy-report*.json
+trivy-report*.sarif
+
+.DS_Store

@@ -1,0 +1,44 @@
+# Helm values for prometheus-community/kube-prometheus-stack
+# helm install monitoring prometheus-community/kube-prometheus-stack -n monitoring --create-namespace -f this-file
+
+grafana:
+  enabled: true
+  adminPassword: "changeme-in-production"
+  persistence:
+    enabled: true
+    size: 5Gi
+  defaultDashboardsEnabled: true
+  service:
+    type: ClusterIP
+
+prometheus:
+  prometheusSpec:
+    retention: 15d
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+    # Discover ServiceMonitors from any namespace with the `ecom` label,
+    # in addition to the release namespace (default operator behavior).
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 20Gi
+
+alertmanager:
+  alertmanagerSpec:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi

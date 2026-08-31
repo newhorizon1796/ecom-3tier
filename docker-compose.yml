@@ -1,0 +1,51 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: ecom-mongo
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ecom-net
+
+  backend:
+    build:
+      context: ./backend
+    container_name: ecom-backend
+    restart: unless-stopped
+    environment:
+      PORT: 5000
+      MONGO_URI: mongodb://mongo:27017/ecom
+      NODE_ENV: production
+    depends_on:
+      mongo:
+        condition: service_healthy
+    ports:
+      - "5000:5000"
+    networks:
+      - ecom-net
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: ecom-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+    networks:
+      - ecom-net
+
+networks:
+  ecom-net:
+    driver: bridge
+
+volumes:
+  mongo-data:

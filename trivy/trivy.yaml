@@ -1,0 +1,12 @@
+# Shared Trivy config used by `trivy image --config trivy/trivy.yaml ...`
+severity:
+  - CRITICAL
+  - HIGH
+exit-code: 1
+ignore-unfixed: true
+scanners:
+  - vuln
+  - secret
+  - misconfig
+format: table
+timeout: 10m0s
