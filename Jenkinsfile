@@ -153,7 +153,13 @@ pipeline {
         stage('Deploy to Kubernetes') {
             when { expression { return params.DEPLOY_TO_K8S } }
             steps {
-                withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG')]) {
+                // The kubeconfig authenticates via AWS's exec-credential
+                // plugin (`aws eks get-token`), so kubectl needs AWS
+                // credentials available too, not just the kubeconfig file.
+                withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG'),
+                                 usernamePassword(credentialsId: 'aws-creds',
+                                                   usernameVariable: 'AWS_ACCESS_KEY_ID',
+                                                   passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
                     sh '''
                       kubectl apply -f k8s/namespace.yaml
                       kubectl apply -n ${KUBE_NAMESPACE} -f k8s/configmap.yaml
