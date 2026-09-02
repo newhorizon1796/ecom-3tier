@@ -3,6 +3,11 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+# Pick up OS security patches released since this base image tag was
+# last rebuilt (e.g. OpenSSL CVEs) — the cached base layer can lag
+# behind Alpine's package repo.
+RUN apk update && apk upgrade --no-cache
+
 COPY package.json package-lock.json* ./
 RUN npm ci --omit=dev --no-audit --no-fund
 
