@@ -31,7 +31,7 @@ pipeline {
     }
 
     environment {
-        AWS_REGION      = 'us-east-1'
+        AWS_REGION      = 'ap-south-1'
         ECR_REGISTRY    = credentials('ecr-registry-url')
         KUBE_NAMESPACE  = 'ecom'
     }
