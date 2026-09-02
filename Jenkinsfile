@@ -23,7 +23,6 @@ pipeline {
         timestamps()
         disableConcurrentBuilds()
         buildDiscarder(logRotator(numToKeepStr: '20'))
-        ansiColor('xterm')
     }
 
     parameters {
