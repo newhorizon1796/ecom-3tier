@@ -21,14 +21,21 @@ spec:
     spec:
       containers:
         - name: backend
-          # Replace with your ECR repo URL; Jenkins overwrites this tag via
-          # `kubectl set image` on every deploy.
-          image: <ECR_REGISTRY>/ecom-backend:latest
+          # Substituted by the Jenkins deploy stage (sed) before `kubectl apply`
+          # so the applied manifest always carries the real tag — never apply
+          # this file as-is, or the placeholder below will be pulled literally.
+          image: __BACKEND_IMAGE__
           ports:
             - containerPort: 5000
           envFrom:
             - configMapRef:
                 name: backend-config
+          env:
+            - name: MONGO_URI
+              valueFrom:
+                secretKeyRef:
+                  name: mongo-credentials
+                  key: MONGO_URI
           readinessProbe:
             httpGet:
               path: /ready

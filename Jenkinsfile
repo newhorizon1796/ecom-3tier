@@ -34,9 +34,6 @@ pipeline {
     environment {
         AWS_REGION      = 'us-east-1'
         ECR_REGISTRY    = credentials('ecr-registry-url')
-        IMAGE_TAG       = "${env.GIT_COMMIT ? env.GIT_COMMIT.take(7) : env.BUILD_NUMBER}"
-        FRONTEND_IMAGE  = "${ECR_REGISTRY}/ecom-frontend:${IMAGE_TAG}"
-        BACKEND_IMAGE   = "${ECR_REGISTRY}/ecom-backend:${IMAGE_TAG}"
         KUBE_NAMESPACE  = 'ecom'
     }
 
@@ -45,6 +42,15 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout scm
+                script {
+                    // Computed here, not in the top-level `environment` block:
+                    // that block evaluates before this stage runs, so
+                    // env.GIT_COMMIT is not reliably populated yet on every
+                    // job type. Reading it straight from git avoids that.
+                    env.IMAGE_TAG      = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+                    env.FRONTEND_IMAGE = "${env.ECR_REGISTRY}/ecom-frontend:${env.IMAGE_TAG}"
+                    env.BACKEND_IMAGE  = "${env.ECR_REGISTRY}/ecom-backend:${env.IMAGE_TAG}"
+                }
             }
         }
 
@@ -157,15 +163,20 @@ pipeline {
                       kubectl apply -n ${KUBE_NAMESPACE} -f k8s/secret.yaml
                       kubectl apply -n ${KUBE_NAMESPACE} -f k8s/mongo-statefulset.yaml
                       kubectl apply -n ${KUBE_NAMESPACE} -f k8s/mongo-service.yaml
-                      kubectl apply -n ${KUBE_NAMESPACE} -f k8s/backend-deployment.yaml
+
+                      # Image tag is templated in here rather than committed to
+                      # the manifest — `kubectl apply` on a checked-in literal
+                      # tag would reset the Deployment to it on every run,
+                      # fighting a separate `kubectl set image` step.
+                      sed "s|__BACKEND_IMAGE__|${BACKEND_IMAGE}|g" k8s/backend-deployment.yaml \
+                        | kubectl apply -n ${KUBE_NAMESPACE} -f -
                       kubectl apply -n ${KUBE_NAMESPACE} -f k8s/backend-service.yaml
                       kubectl apply -n ${KUBE_NAMESPACE} -f k8s/backend-hpa.yaml
-                      kubectl apply -n ${KUBE_NAMESPACE} -f k8s/frontend-deployment.yaml
+
+                      sed "s|__FRONTEND_IMAGE__|${FRONTEND_IMAGE}|g" k8s/frontend-deployment.yaml \
+                        | kubectl apply -n ${KUBE_NAMESPACE} -f -
                       kubectl apply -n ${KUBE_NAMESPACE} -f k8s/frontend-service.yaml
                       kubectl apply -n ${KUBE_NAMESPACE} -f k8s/ingress.yaml
-
-                      kubectl set image deployment/backend backend=${BACKEND_IMAGE} -n ${KUBE_NAMESPACE}
-                      kubectl set image deployment/frontend frontend=${FRONTEND_IMAGE} -n ${KUBE_NAMESPACE}
 
                       kubectl rollout status deployment/backend -n ${KUBE_NAMESPACE} --timeout=180s
                       kubectl rollout status deployment/frontend -n ${KUBE_NAMESPACE} --timeout=180s

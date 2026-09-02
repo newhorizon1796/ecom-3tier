@@ -17,9 +17,10 @@ spec:
     spec:
       containers:
         - name: frontend
-          # Replace with your ECR repo URL; Jenkins overwrites this tag via
-          # `kubectl set image` on every deploy.
-          image: <ECR_REGISTRY>/ecom-frontend:latest
+          # Substituted by the Jenkins deploy stage (sed) before `kubectl apply`
+          # so the applied manifest always carries the real tag — never apply
+          # this file as-is, or the placeholder below will be pulled literally.
+          image: __FRONTEND_IMAGE__
           ports:
             - containerPort: 80
           readinessProbe:
