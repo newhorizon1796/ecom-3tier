@@ -21,8 +21,55 @@ module "eks" {
     }
   }
 
+  # The in-tree kubernetes.io/aws-ebs provisioner (used by the "gp2"
+  # StorageClass EKS ships by default) was removed from Kubernetes
+  # itself in the CSI migration, so PVCs never bind without this addon.
+  cluster_addons = {
+    aws-ebs-csi-driver = {
+      service_account_role_arn = aws_iam_role.ebs_csi.arn
+    }
+  }
+
   tags = {
     Project     = var.project
     Environment = var.environment
   }
+}
+
+data "aws_iam_policy_document" "ebs_csi_assume" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+    effect  = "Allow"
+
+    condition {
+      test     = "StringEquals"
+      variable = "${replace(module.eks.oidc_provider, "https://", "")}:sub"
+      values   = ["system:serviceaccount:kube-system:ebs-csi-controller-sa"]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "${replace(module.eks.oidc_provider, "https://", "")}:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    principals {
+      type        = "Federated"
+      identifiers = [module.eks.oidc_provider_arn]
+    }
+  }
+}
+
+resource "aws_iam_role" "ebs_csi" {
+  name               = "${var.cluster_name}-ebs-csi"
+  assume_role_policy = data.aws_iam_policy_document.ebs_csi_assume.json
+
+  tags = {
+    Project     = var.project
+    Environment = var.environment
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "ebs_csi" {
+  role       = aws_iam_role.ebs_csi.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
 }

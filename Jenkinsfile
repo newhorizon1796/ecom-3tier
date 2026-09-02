@@ -162,6 +162,7 @@ pipeline {
                                                    passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
                     sh '''
                       kubectl apply -f k8s/namespace.yaml
+                      kubectl apply -f k8s/storageclass.yaml
                       kubectl apply -n ${KUBE_NAMESPACE} -f k8s/configmap.yaml
                       kubectl apply -n ${KUBE_NAMESPACE} -f k8s/secret.yaml
                       kubectl apply -n ${KUBE_NAMESPACE} -f k8s/mongo-statefulset.yaml
