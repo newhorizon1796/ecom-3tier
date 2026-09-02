@@ -43,7 +43,7 @@ ecom-3tier/
 ├── Jenkinsfile           Full CI/CD pipeline (test → build → Trivy scan → push → deploy)
 ├── trivy/                Trivy config + ignore file
 ├── terraform/            AWS VPC + EKS + ECR (IaC for the cluster the app runs on)
-├── k8s/                  Kubernetes manifests (Deployments, Services, Ingress, HPA, Mongo StatefulSet)
+├── k8s/                  Kubernetes manifests (Deployments, Services, Ingress, HPA, Mongo StatefulSet + seed Job, StorageClass)
 └── monitoring/           kube-prometheus-stack Helm values, ServiceMonitor, Grafana dashboard
 ```
 
@@ -68,7 +68,27 @@ docker compose up --build
    - push images to ECR
    - `kubectl apply` the manifests in `k8s/` (image tag templated from the Jenkins build)
 4. **Kubernetes (EKS)** — Deployments for frontend/backend, StatefulSet+PVC for MongoDB, an Ingress (ALB or nginx), an HPA on the backend.
-5. **Monitoring** — install `kube-prometheus-stack` via Helm using `monitoring/kube-prometheus-stack-values.yaml`; the backend exposes Prometheus metrics at `/metrics`, scraped via the `ServiceMonitor` in `monitoring/backend-servicemonitor.yaml`; import `monitoring/grafana-dashboard-ecom.json` into Grafana.
+5. **Ingress controller (manual, one-time per cluster)** — the `nginx` Ingress in `k8s/ingress.yaml` needs an actual controller running to do anything; nothing in this repo installs one. Install `ingress-nginx` via Helm — this is what provisions the AWS Load Balancer and gives the app a real public URL:
+   ```bash
+   helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+   helm repo update
+   helm install ingress-nginx ingress-nginx/ingress-nginx \
+     --namespace ingress-nginx --create-namespace \
+     --set controller.service.type=LoadBalancer
+   kubectl get svc -n ingress-nginx ingress-nginx-controller
+   # EXTERNAL-IP column shows the load balancer's public hostname once provisioned (a few minutes)
+   ```
+   `k8s/ingress.yaml` has no `host:` filter, so it routes on whatever hostname reaches the load balancer — the AWS-assigned one works immediately, no domain required. Point a real domain at it later via a CNAME if you want one.
+6. **Monitoring (manual, one-time per cluster)** — same story as ingress: nothing in this repo installs `kube-prometheus-stack` itself, only the config it needs once it exists.
+   ```bash
+   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+   helm repo update
+   helm install monitoring prometheus-community/kube-prometheus-stack \
+     --namespace monitoring --create-namespace \
+     -f monitoring/kube-prometheus-stack-values.yaml
+   kubectl apply -f monitoring/backend-servicemonitor.yaml
+   ```
+   The backend exposes Prometheus metrics at `/metrics`, scraped via that `ServiceMonitor`; import `monitoring/grafana-dashboard-ecom.json` into Grafana (Dashboards → New → Import → Upload JSON, or via the API — see `monitoring/README.md`) for request rate / error rate / p95 latency panels. Full details, including how to reach Grafana, are in `monitoring/README.md`.
 
 See the `README.md`-style comments/instructions inside each subfolder's files for exact commands.
 
@@ -79,5 +99,5 @@ See the `README.md`-style comments/instructions inside each subfolder's files fo
 - Trivy 0.55+ (`aquasecurity/trivy`)
 - Terraform 1.9+, AWS provider ~> 5.0
 - kubectl 1.29+, AWS CLI v2 (`aws eks update-kubeconfig`)
-- Helm 3.x (for kube-prometheus-stack)
+- Helm 3.x (for ingress-nginx and kube-prometheus-stack — see "Path to production" below)
 - A Jenkins controller with: Docker, Git, Pipeline, Credentials Binding, and Kubernetes CLI plugins; an agent with Docker, Trivy, kubectl, terraform, and aws-cli installed (see `Jenkinsfile` comments)
