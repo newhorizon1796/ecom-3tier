@@ -2,6 +2,12 @@
 
 A minimal but fully wired e-commerce app demonstrating a production-style DevOps toolchain:
 
+> **New to this repo?** [`docs/HANDBOOK.md`](docs/HANDBOOK.md) is a step-by-step build
+> log of standing this whole stack up from scratch on a fresh AWS account — every
+> phase's *why* and *how*, plus every real error hit along the way with how it was
+> diagnosed and fixed. Read it if you're trying to reproduce this manually or want the
+> reasoning this README alone doesn't have room for.
+
 ```
 GitHub  →  Jenkins CI/CD  →  Docker build  →  Trivy image scan  →  Push to ECR
                                                                         │
