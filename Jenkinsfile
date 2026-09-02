@@ -96,12 +96,12 @@ pipeline {
             parallel {
                 stage('Backend image') {
                     steps {
-                        sh "docker build -t ${BACKEND_IMAGE} -t ${ECR_REGISTRY}/ecom-backend:latest ./backend"
+                        sh "docker build -t ${BACKEND_IMAGE} ./backend"
                     }
                 }
                 stage('Frontend image') {
                     steps {
-                        sh "docker build -t ${FRONTEND_IMAGE} -t ${ECR_REGISTRY}/ecom-frontend:latest ./frontend"
+                        sh "docker build -t ${FRONTEND_IMAGE} ./frontend"
                     }
                 }
             }
@@ -146,9 +146,7 @@ pipeline {
                         | docker login --username AWS --password-stdin ${ECR_REGISTRY}
                     '''
                     sh "docker push ${BACKEND_IMAGE}"
-                    sh "docker push ${ECR_REGISTRY}/ecom-backend:latest"
                     sh "docker push ${FRONTEND_IMAGE}"
-                    sh "docker push ${ECR_REGISTRY}/ecom-frontend:latest"
                 }
             }
         }
