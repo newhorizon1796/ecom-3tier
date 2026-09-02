@@ -10,6 +10,9 @@ terraform/*.tfstate
 terraform/*.tfstate.backup
 terraform/.terraform.lock.hcl
 terraform/terraform.tfvars
+terraform/tfplan
+terraform/*kubeconfig*.yaml
+terraform/upgrade_sequence.sh
 
 # trivy
 trivy-report*.json
