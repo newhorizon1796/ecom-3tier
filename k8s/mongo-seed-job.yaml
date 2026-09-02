@@ -1,0 +1,41 @@
+# One-shot seed job. Unlike docker-compose (where mongo:7's
+# docker-entrypoint-initdb.d/ convention seeds on first boot of an empty
+# volume), a StatefulSet's PVC can already be initialized by the time this
+# is ever applied, so seeding here is idempotent instead of relying on
+# "first boot" semantics: it only inserts if the catalog is empty.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mongo-seed
+  namespace: ecom
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: mongo-seed
+          image: mongo:7
+          env:
+            - name: MONGO_URI
+              valueFrom:
+                secretKeyRef:
+                  name: mongo-credentials
+                  key: MONGO_URI
+          command:
+            - mongosh
+            - $(MONGO_URI)
+            - --quiet
+            - --eval
+            - |
+              if (db.products.countDocuments() === 0) {
+                db.products.insertMany([
+                  { name: 'Wireless Headphones', description: 'Over-ear, noise cancelling', price: 79.99, stock: 50 },
+                  { name: 'Mechanical Keyboard', description: '75% layout, hot-swappable switches', price: 109.5, stock: 30 },
+                  { name: 'USB-C Hub', description: '7-in-1, HDMI + PD passthrough', price: 34.0, stock: 100 },
+                  { name: 'Standing Desk Mat', description: 'Anti-fatigue, 30x20 in', price: 45.25, stock: 20 },
+                ]);
+                print('seeded');
+              } else {
+                print('already seeded, skipping');
+              }

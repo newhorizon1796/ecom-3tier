@@ -167,6 +167,7 @@ pipeline {
                       kubectl apply -n ${KUBE_NAMESPACE} -f k8s/secret.yaml
                       kubectl apply -n ${KUBE_NAMESPACE} -f k8s/mongo-statefulset.yaml
                       kubectl apply -n ${KUBE_NAMESPACE} -f k8s/mongo-service.yaml
+                      kubectl apply -n ${KUBE_NAMESPACE} -f k8s/mongo-seed-job.yaml
 
                       # Image tag is templated in here rather than committed to
                       # the manifest — `kubectl apply` on a checked-in literal
