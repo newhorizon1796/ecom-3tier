@@ -8,6 +8,13 @@ RUN npm ci --omit=dev --no-audit --no-fund
 
 COPY src ./src
 
+# npm itself is a build-time tool (this image only ever runs `node
+# src/server.js`, never `npm`) — its bundled internal dependencies
+# (tar, sigstore, etc., vendored inside node:20-alpine's global npm
+# install) show up as CVEs in image scans despite being unused at
+# runtime. Removing it shrinks real attack surface, not just the scan.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+
 # Run as non-root
 RUN addgroup -S app && adduser -S app -G app
 USER app
