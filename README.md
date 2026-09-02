@@ -7,6 +7,11 @@ A minimal but fully wired e-commerce app demonstrating a production-style DevOps
 > phase's *why* and *how*, plus every real error hit along the way with how it was
 > diagnosed and fixed. Read it if you're trying to reproduce this manually or want the
 > reasoning this README alone doesn't have room for.
+>
+> Also in `docs/`: [`COST-OPTIMIZATION.md`](docs/COST-OPTIMIZATION.md) (this project's
+> actual cost drivers and how to cut them) and
+> [`PAYMENT-GATEWAY.md`](docs/PAYMENT-GATEWAY.md) (an implementation guide for adding
+> Stripe/Razorpay checkout — not yet implemented in the app itself).
 
 ```
 GitHub  →  Jenkins CI/CD  →  Docker build  →  Trivy image scan  →  Push to ECR

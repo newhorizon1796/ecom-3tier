@@ -11,7 +11,7 @@ terraform/*.tfstate.backup
 terraform/.terraform.tfstate.lock.info
 terraform/.terraform.lock.hcl
 terraform/terraform.tfvars
-terraform/tfplan
+terraform/*tfplan
 terraform/*kubeconfig*.yaml
 terraform/upgrade_sequence.sh
 
