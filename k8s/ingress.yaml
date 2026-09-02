@@ -6,13 +6,19 @@ kind: Ingress
 metadata:
   name: ecom-ingress
   namespace: ecom
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
+  # No rewrite-target: the backend's routes are already mounted at
+  # /api/... and the frontend serves everything else at /, so the
+  # original request path must reach each service unmodified. A bare
+  # `rewrite-target: /` here previously rewrote every request to /,
+  # breaking /api/* entirely (backend returned its own 404 for /).
 spec:
   ingressClassName: nginx
   rules:
-    - host: shop.example.com
-      http:
+    # No host filter: routes on whatever hostname reaches the load
+    # balancer (its own AWS-assigned DNS name, or a real domain once
+    # one is pointed at it via a CNAME). Add `host:` back once you
+    # own a domain for this.
+    - http:
         paths:
           - path: /api
             pathType: Prefix
