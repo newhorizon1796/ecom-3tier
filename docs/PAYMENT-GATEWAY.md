@@ -1,9 +1,20 @@
 # Implementing a Payment Gateway
 
-This is a guide, not a completed integration — nothing in `backend/` or `frontend/`
-has been changed to add this yet. It documents the recommended approach and the exact
-changes needed so it can be implemented deliberately, with the security tradeoffs
-understood up front rather than discovered later.
+> **Implemented.** This design has been built as written — see
+> [`ecom-backend`](https://github.com/newhorizon1796/ecom-backend)
+> (`src/routes/checkout.js`, `src/routes/stripeWebhook.js`) and
+> [`ecom-frontend`](https://github.com/newhorizon1796/ecom-frontend)
+> (`src/components/CheckoutResult.js`, `App.js`). The design below is kept
+> as-is since it's still the accurate reference for *why* it's built this
+> way — the "Testing before touching real money" and security checklist
+> sections in particular are still exactly what to follow when wiring up
+> real Stripe test keys.
+
+This document was originally a guide, not a completed integration — nothing in
+`backend/` or `frontend/` had been changed to add this yet. It documents the
+recommended approach and the exact changes needed so it could be implemented
+deliberately, with the security tradeoffs understood up front rather than
+discovered later.
 
 ## Why this is different from every other integration in this project
 

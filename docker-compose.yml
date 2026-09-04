@@ -1,3 +1,12 @@
+# Local dev only. Assumes ecom-backend and ecom-frontend are checked out as
+# sibling directories to this repo (../ecom-backend, ../ecom-frontend) —
+# this repo split into one GitHub repo per service (see README.md), so
+# there's no single tree to build from anymore.
+#
+# Stripe vars are read from a .env file next to this docker-compose.yml
+# (docker-compose auto-loads it) — copy ../ecom-backend/.env.example's
+# Stripe lines in there with real test-mode keys if you want to exercise
+# checkout locally; the placeholders below are enough for everything else.
 services:
   mongo:
     image: mongo:7
@@ -5,7 +14,7 @@ services:
     restart: unless-stopped
     volumes:
       - mongo-data:/data/db
-      - ./database/init:/docker-entrypoint-initdb.d:ro
+      - ../ecom-backend/database/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
@@ -16,13 +25,16 @@ services:
 
   backend:
     build:
-      context: ./backend
+      context: ../ecom-backend
     container_name: ecom-backend
     restart: unless-stopped
     environment:
       PORT: 5000
       MONGO_URI: mongodb://mongo:27017/ecom
       NODE_ENV: production
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-sk_test_REPLACE_ME}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-whsec_REPLACE_ME}
+      FRONTEND_URL: http://localhost:3000
     depends_on:
       mongo:
         condition: service_healthy
@@ -33,7 +45,7 @@ services:
 
   frontend:
     build:
-      context: ./frontend
+      context: ../ecom-frontend
     container_name: ecom-frontend
     restart: unless-stopped
     depends_on:

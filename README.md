@@ -1,114 +1,103 @@
-# 3-Tier E-Commerce Platform — Full DevOps Reference Implementation
+# ShopEasy — 3-Tier E-Commerce Platform (polyrepo, full DevOps toolchain)
 
-A minimal but fully wired e-commerce app demonstrating a production-style DevOps toolchain:
+This is the **hub repo**: architecture docs, local-dev `docker-compose.yml`,
+and the build history. The actual app, infra, and platform config each live
+in their own repo, mirroring how a real org splits a system across
+service-owned repos instead of one monorepo.
 
-> **New to this repo?** [`docs/HANDBOOK.md`](docs/HANDBOOK.md) is a step-by-step build
-> log of standing this whole stack up from scratch on a fresh AWS account — every
-> phase's *why* and *how*, plus every real error hit along the way with how it was
-> diagnosed and fixed. Read it if you're trying to reproduce this manually or want the
-> reasoning this README alone doesn't have room for.
->
-> Also in `docs/`: [`COST-OPTIMIZATION.md`](docs/COST-OPTIMIZATION.md) (this project's
-> actual cost drivers and how to cut them) and
-> [`PAYMENT-GATEWAY.md`](docs/PAYMENT-GATEWAY.md) (an implementation guide for adding
-> Stripe/Razorpay checkout — not yet implemented in the app itself).
+> **New here?** [`docs/HANDBOOK.md`](docs/HANDBOOK.md) is a step-by-step
+> build log of standing the original single-cluster stack up from scratch —
+> every phase's *why* and *how*, every real error hit and how it was fixed.
+> [`docs/COST-OPTIMIZATION.md`](docs/COST-OPTIMIZATION.md) covers this
+> project's actual cost drivers. [`docs/PAYMENT-GATEWAY.md`](docs/PAYMENT-GATEWAY.md)
+> is the Stripe integration design (now implemented — see below).
+> [`docs/JIRA-INTEGRATION.md`](docs/JIRA-INTEGRATION.md) covers how work is
+> tracked.
 
-```
-GitHub  →  Jenkins CI/CD  →  Docker build  →  Trivy image scan  →  Push to ECR
-                                                                        │
-Terraform (VPC + EKS + ECR)  ──────────────────────────────────────────┘
-                                                                        │
-                                                                        ▼
-                                                       Kubernetes (EKS)
-                                                  ┌───────────┬───────────┐
-                                                  │ frontend  │  backend  │
-                                                  │ (React/   │ (Node/    │
-                                                  │  Nginx)   │  Express) │
-                                                  └───────────┴───────────┘
-                                                        │           │
-                                                        ▼           ▼
-                                                     Ingress     MongoDB
-                                                                (StatefulSet)
-                                                                        │
-                                                        Prometheus + Grafana
-                                                        (kube-prometheus-stack,
-                                                         scrapes /metrics)
-```
+## The repos
 
-## Architecture (3 tiers)
+| Repo | What it owns |
+|---|---|
+| [`ecom-frontend`](https://github.com/newhorizon1796/ecom-frontend) | React SPA — product catalog, cart, Stripe checkout redirect |
+| [`ecom-backend`](https://github.com/newhorizon1796/ecom-backend) | Express API — products, orders, Stripe checkout + webhook, `/health`, `/metrics` |
+| [`ecom-infra`](https://github.com/newhorizon1796/ecom-infra) | Terraform — VPC, EKS, ECR, AWS Secrets Manager + IRSA |
+| [`ecom-k8s`](https://github.com/newhorizon1796/ecom-k8s) | Kubernetes manifests + the deploy Jenkins pipeline |
+| [`ecom-monitoring`](https://github.com/newhorizon1796/ecom-monitoring) | kube-prometheus-stack values, ServiceMonitor, Grafana dashboard |
+| `ecom-3tier` (this repo) | Docs, local-dev compose, cross-repo build history |
 
-| Tier | Technology | Path |
-|---|---|---|
-| Presentation | React 18, served by Nginx | `frontend/` |
-| Application  | Node.js 20 + Express REST API | `backend/` |
-| Data         | MongoDB 7 | `database/`, `k8s/mongo-*.yaml` |
-
-## Repo layout
+Each app/infra repo has its own `Jenkinsfile`, its own GitHub webhook, and
+its own `README.md` with repo-specific commands. `ecom-backend` and
+`ecom-frontend` build/test/scan/push their own image and then trigger
+`ecom-k8s`'s deploy pipeline as a downstream job — they never run `kubectl`
+directly. See [`ecom-k8s`'s README](https://github.com/newhorizon1796/ecom-k8s#readme)
+for the full deploy order.
 
 ```
-ecom-3tier/
-├── frontend/            React SPA (product catalog + cart) + Dockerfile + nginx.conf
-├── backend/              Express API (products, orders, /health, /metrics) + Dockerfile
-├── database/init/       MongoDB seed script
-├── docker-compose.yml    Local dev: all 3 tiers with one command
-├── Jenkinsfile           Full CI/CD pipeline (test → build → Trivy scan → push → deploy)
-├── trivy/                Trivy config + ignore file
-├── terraform/            AWS VPC + EKS + ECR (IaC for the cluster the app runs on)
-├── k8s/                  Kubernetes manifests (Deployments, Services, Ingress, HPA, Mongo StatefulSet + seed Job, StorageClass)
-└── monitoring/           kube-prometheus-stack Helm values, ServiceMonitor, Grafana dashboard
+GitHub (5 repos, 5 webhooks) → Jenkins (per-repo build+test+scan+push,
+                                         ecom-k8s owns kubectl apply)
+                                              │
+ecom-infra (Terraform: VPC+EKS+ECR+Secrets Manager) ──────┘
+                                              │
+                                              ▼
+                                  Kubernetes (EKS)
+                             ┌───────────┬───────────┐
+                             │ frontend  │  backend  │──── Stripe (Checkout + webhook)
+                             │ (React/   │ (Node/    │
+                             │  Nginx)   │  Express) │
+                             └───────────┴───────────┘
+                                   │           │
+                                   ▼           ▼
+                                Ingress   MongoDB (StatefulSet)
+                                   │           │
+                                   │      External Secrets Operator
+                                   │      ← AWS Secrets Manager (mongo, stripe creds)
+                                   ▼
+                        Prometheus + Grafana (kube-prometheus-stack)
+
+Jira (ECOM project) ← GitHub for Jira app (all 5 repos) + Smart Commits
+                     ← auto-filed Bug on any Jenkins pipeline failure
 ```
 
 ## Quick start (local, no cluster needed)
 
+Clone all repos as siblings, then run compose from this one:
+
 ```bash
-git clone <your-repo-url> ecom-3tier && cd ecom-3tier
+mkdir shopeasy && cd shopeasy
+git clone https://github.com/newhorizon1796/ecom-3tier.git
+git clone https://github.com/newhorizon1796/ecom-backend.git
+git clone https://github.com/newhorizon1796/ecom-frontend.git
+cd ecom-3tier
 docker compose up --build
 # frontend -> http://localhost:3000
 # backend  -> http://localhost:5000/api/products
 # metrics  -> http://localhost:5000/metrics
 ```
 
+Checkout works locally too if you drop real Stripe test keys into a `.env`
+file next to `docker-compose.yml` — see the comment at the top of that file.
+
 ## Path to production
 
-1. **GitHub** — push this repo, protect `main`, Jenkins polls/webhooks it.
-2. **Terraform** — `cd terraform && terraform init && terraform apply` provisions VPC, EKS cluster, and two ECR repos (frontend/backend).
-3. **Jenkins** — configure a Multibranch/Pipeline job pointing at the repo; it will:
-   - install deps + run unit tests (frontend & backend, in parallel)
-   - build Docker images for both tiers
-   - scan both images with **Trivy** (pipeline fails on HIGH/CRITICAL CVEs)
-   - push images to ECR
-   - `kubectl apply` the manifests in `k8s/` (image tag templated from the Jenkins build)
-4. **Kubernetes (EKS)** — Deployments for frontend/backend, StatefulSet+PVC for MongoDB, an Ingress (ALB or nginx), an HPA on the backend.
-5. **Ingress controller (manual, one-time per cluster)** — the `nginx` Ingress in `k8s/ingress.yaml` needs an actual controller running to do anything; nothing in this repo installs one. Install `ingress-nginx` via Helm — this is what provisions the AWS Load Balancer and gives the app a real public URL:
-   ```bash
-   helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
-   helm repo update
-   helm install ingress-nginx ingress-nginx/ingress-nginx \
-     --namespace ingress-nginx --create-namespace \
-     --set controller.service.type=LoadBalancer
-   kubectl get svc -n ingress-nginx ingress-nginx-controller
-   # EXTERNAL-IP column shows the load balancer's public hostname once provisioned (a few minutes)
-   ```
-   `k8s/ingress.yaml` has no `host:` filter, so it routes on whatever hostname reaches the load balancer — the AWS-assigned one works immediately, no domain required. Point a real domain at it later via a CNAME if you want one.
-6. **Monitoring (manual, one-time per cluster)** — same story as ingress: nothing in this repo installs `kube-prometheus-stack` itself, only the config it needs once it exists.
-   ```bash
-   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-   helm repo update
-   helm install monitoring prometheus-community/kube-prometheus-stack \
-     --namespace monitoring --create-namespace \
-     -f monitoring/kube-prometheus-stack-values.yaml
-   kubectl apply -f monitoring/backend-servicemonitor.yaml
-   ```
-   The backend exposes Prometheus metrics at `/metrics`, scraped via that `ServiceMonitor`; import `monitoring/grafana-dashboard-ecom.json` into Grafana (Dashboards → New → Import → Upload JSON, or via the API — see `monitoring/README.md`) for request rate / error rate / p95 latency panels. Full details, including how to reach Grafana, are in `monitoring/README.md`.
+This now spans five repos instead of one folder tree. At a high level:
 
-See the `README.md`-style comments/instructions inside each subfolder's files for exact commands.
+1. **`ecom-infra`** — `terraform apply` provisions the VPC, EKS cluster, two ECR repos, and the `mongo-credentials`/`stripe-credentials` AWS Secrets Manager secrets + the IRSA role External Secrets Operator needs.
+2. **Cluster add-ons (manual, one-time)** — `ingress-nginx`, `kube-prometheus-stack`, and **External Secrets Operator** via Helm (the last one is new — see `ecom-k8s`'s README).
+3. **`ecom-k8s`** — run its Jenkins job once with `SERVICE=bootstrap` to apply everything that isn't image-templated (namespace, storageclass, ExternalSecrets, Mongo, services, HPA, ingress).
+4. **`ecom-backend` / `ecom-frontend`** — each has its own Jenkins job (triggered by its own GitHub webhook) that tests, builds, Trivy-scans, pushes to ECR, then triggers `ecom-k8s`'s deploy job for just that service.
+5. **Jira** — see `docs/JIRA-INTEGRATION.md` for the GitHub for Jira app, Smart Commits, and the automatic failure-ticket wiring in each Jenkinsfile.
 
-## Prerequisites / dependencies (all versions pinned where possible)
+Full exact commands for every step are in the manual runbook (delivered
+alongside this repo's setup, not committed as a single doc — each repo's
+own README has the commands specific to it).
+
+## Prerequisites / dependencies
 
 - Node.js 20.x, npm 10.x
 - Docker 24+ / Docker Compose v2
 - Trivy 0.55+ (`aquasecurity/trivy`)
 - Terraform 1.9+, AWS provider ~> 5.0
 - kubectl 1.29+, AWS CLI v2 (`aws eks update-kubeconfig`)
-- Helm 3.x (for ingress-nginx and kube-prometheus-stack — see "Path to production" below)
-- A Jenkins controller with: Docker, Git, Pipeline, Credentials Binding, and Kubernetes CLI plugins; an agent with Docker, Trivy, kubectl, terraform, and aws-cli installed (see `Jenkinsfile` comments)
+- Helm 3.x (ingress-nginx, kube-prometheus-stack, **external-secrets**)
+- A Jenkins controller with one job per repo (5 jobs total): Docker, Git, Pipeline, Credentials Binding plugins; an agent with Docker, Trivy, kubectl, terraform, aws-cli, curl (for the Jira API call) installed
+- A Jira Cloud site with the **GitHub for Jira** app installed
